@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  kronos:
+    build: .
+    container_name: kronos-container
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      # Mount data directory for input data
+      - ./data:/app/data
+      # Mount models directory for model storage
+      - ./models:/app/models
+      # Mount outputs directory for results
+      - ./outputs:/app/outputs
+      # Mount examples directory for custom scripts
+      - ./examples:/app/examples
+    ports:
+      # Expose port for web interface
+      - "7860:7860"
+    command: >
+      bash -c "
+        echo 'Starting Kronos container...' &&
+        echo 'Available models:' &&
+        ls -la /app/models/ 2>/dev/null || echo 'No models found in /app/models' &&
+        echo 'Available data:' &&
+        ls -la /app/data/ 2>/dev/null || echo 'No data found in /app/data' &&
+        echo 'Running prediction example...' &&
+        python examples/prediction_example.py
+      "
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Optional: Jupyter notebook service for interactive development
+  jupyter:
+    build: .
+    container_name: kronos-jupyter
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+      - ./examples:/app/examples
+      - ./notebooks:/app/notebooks
+    ports:
+      - "8888:8888"
+    command: >
+      bash -c "
+        pip install jupyter notebook &&
+        jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+      "
+    restart: unless-stopped
+    profiles:
+      - jupyter
